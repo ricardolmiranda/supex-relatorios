@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
+    <meta name="format-detection" content="telephone=no, date=no">
+    <title>Gerador de Relatório Técnico - SUPEX</title>
+    <!-- Biblioteca PDF.js para processar os anexos e ler o PDF recuperado -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+    <script>
+        if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+
+    <style>
+        /* ESTILOS GERAIS */
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #000; counter-reset: pageNum; }
+        .container { max-width: 900px; margin: 20px auto; background: #fff; padding: 40px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label { font-weight: bold; display: block; margin-bottom: 5px; }
+        input[type="text"], input[type="date"], input[type="time"], select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: Arial, sans-serif;}
+        .inline-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .inline-group input, .inline-group select { width: auto; flex-grow: 1; min-width: 120px; }
+        
+        button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; transition: 0.2s;}
+        .btn-primary { background-color: #0056b3; color: white; }
+        .btn-primary:hover { background-color: #004494; }
+        .btn-mic { background-color: #dc3545; color: white; padding: 8px; margin-left: 5px; }
+        .btn-add { background-color: #28a745; color: white; margin-top: 10px; }
+        .btn-generate { background-color: #17a2b8; color: white; font-size: 18px; width: 100%; padding: 15px; margin-top: 20px; }
+        .btn-load { background-color: #fd7e14; color: white; display: inline-block; }
+        
+        .dynamic-group { border: 1px dashed #ccc; padding: 15px; margin-bottom: 15px; background: #fafafa; }
+        .dynamic-item { display: flex; gap: 10px; margin-bottom: 5px; align-items: center; }
+        .dynamic-item select { flex: 1; }
+        .dynamic-item input[type="text"] { flex: 1; }
+
+        /* Estilo dos Cards de Foto - ARRASTAR E SOLTAR */
+        .photo-card { border: 1px solid #ddd; padding: 10px; text-align: center; background: #fff; margin-bottom: 10px; position: relative; cursor: grab; transition: 0.2s;}
+        .photo-card:active { cursor: grabbing; }
+        .photo-card.drag-over { border: 2px dashed #0056b3; background-color: #f0f8ff; opacity: 0.8; transform: scale(1.02); }
+        .photo-card img { max-width: 100%; height: 200px; object-fit: cover; margin-bottom: 10px; border-radius: 4px; pointer-events: none;}
+        
+        .card-header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .drag-indicator { font-size: 12px; color: #777; font-weight: bold; pointer-events: none; }
+        .btn-delete-photo { background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+
+        /* ESTILOS DE IMPRESSÃO */
+        #reportView { display: none; background: white; padding: 0; }
+        .toolbar { text-align: center; margin-bottom: 20px; padding: 15px; background: #333; color: white; border-radius: 8px;}
+
+        /* Tabela Contínua com Bordas */
+        .print-table { width: 100%; max-width: 100%; border-collapse: collapse; border: 1px solid #000; table-layout: fixed; }
+        .print-table thead { display: table-header-group; }
+        .print-table tfoot { display: table-footer-group; }
+        .print-table tbody { display: table-row-group; }
+        
+        .print-table th, .print-table td { border-left: 1px solid #000; border-right: 1px solid #000; padding: 15px 20px; background: white; word-wrap: break-word;}
+        .print-table th { border-bottom: none; border-top: 1px solid #000; padding-top: 20px; padding-bottom: 5px; }
+        .print-table td { border-top: none; }
+        .print-table tfoot td { border-top: none; border-bottom: 1px solid #000; padding-top: 40px; padding-bottom: 15px; }
+
+        .print-body { font-size: 14px; line-height: 1.6; text-align: justify; }
+        .print-group-wrapper { page-break-inside: avoid; break-inside: avoid; margin-bottom: 10px; }
+        
+        .print-body h4 { background-color: #e9e9e9; padding: 5px 10px; margin: 10px 0; text-transform: uppercase; font-size: 13px; border-left: 4px solid #333; }
+        .print-body ul { list-style-type: none; padding-left: 0; margin-top: 0; }
+        .print-body ul li { margin-bottom: 5px; padding-left: 20px; position: relative; }
+        .print-body ul li:before { content: '✓'; position: absolute; left: 0; font-weight: bold; }
+        
+        .section-title { font-size: 15px; font-weight: bold; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #000; padding-bottom: 3px; page-break-after: avoid; break-after: avoid;}
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+
+        .print-signature { text-align: center; margin-top: 60px; page-break-inside: avoid; }
+        .print-signature div { border-top: 1px solid #000; width: 350px; margin: 0 auto; padding-top: 5px; font-weight: bold;}
+
+        .page-number-display::before { counter-increment: pageNum; content: "Página " counter(pageNum); }
+
+        /* GRID PARA 6 FOTOS NA IMPRESSÃO */
+        .photo-print-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 10px; page-break-inside: avoid;}
+        .photo-print-item { border: 1px solid #999; padding: 5px; text-align: center; background: white; page-break-inside: avoid; }
+        .photo-print-img { width: 100%; height: 200px; object-fit: cover; margin-bottom: 5px; display: block;}
+        .photo-print-legend { font-size: 12px; font-weight: bold; line-height: 1.2; max-height: 30px; overflow: hidden;}
+
+        #metadataExport { font-size: 1px; color: white; opacity: 0.01; line-height: 1px; overflow: hidden; height: 1px; user-select: none;}
+
+        @media print {
+            body, html { background: white; margin: 0; padding: 0; }
+            .container { max-width: 100%; box-shadow: none; padding: 0; margin: 0; border: none; }
+            .no-print { display: none !important; }
+            @page { margin: 10mm; } 
+        }
+
+        /* ===== COMPATIBILIDADE MOBILE (iOS / Android) ===== */
+        :root { color-scheme: light; }
+        html { -webkit-text-size-adjust: 100%; }
+        input[type="text"], input[type="date"], input[type="time"], select, textarea { font-size: 16px; background: #fff; color: #000; }
+        input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; min-height: 42px; }
+        button { -webkit-appearance: none; appearance: none; touch-action: manipulation; min-height: 40px; font-family: Arial, sans-serif; }
+        .file-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+        .grid-fotos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .btn-move { background: #6c757d; color: #fff; padding: 5px 10px; font-size: 14px; min-height: 32px; margin-right: 4px; }
+        .card-header-actions .acoes { display: flex; align-items: center; }
+        .print-body h4 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        @media (hover: none) { .drag-indicator { display: none; } .photo-card { cursor: default; } }
+        @media screen and (max-width: 700px) {
+            .container { margin: 0; padding: 15px; box-shadow: none; }
+            .inline-group label { margin-left: 0 !important; width: 100%; }
+            .inline-group input, .inline-group select { flex: 1 1 100%; min-width: 0; }
+            .dynamic-item { flex-wrap: wrap; }
+            .dynamic-item select, .dynamic-item input[type="text"] { flex: 1 1 100%; min-width: 0; }
+            .grid-fotos { grid-template-columns: 1fr; }
+            .info-grid { grid-template-columns: 1fr; }
+            .info-grid > div { text-align: left !important; }
+            .print-table th, .print-table td { padding: 10px; }
+            .print-signature div { width: 90%; }
+            .photo-print-img { height: 120px; }
+            .toolbar button { margin: 4px !important; }
+            .btn-mic { margin-left: 0; margin-top: 5px; }
+        }
+
+        /* ===== PÁGINAS DO RELATÓRIO (Página X/Y) ===== */
+        #paginasRelatorio { margin: 0 auto; }
+        .pagina { position: relative; width: 190mm; height: 274mm; margin: 0 auto 15px; background: #fff; border: 1px solid #000; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 6px rgba(0,0,0,.2); }
+        .pagina-head { flex: none; height: 28mm; display: flex; align-items: center; justify-content: center; }
+        .pagina-head img { height: 70px; display: block; }
+        .pagina-body { flex: 1; min-height: 0; padding: 4px 20px; overflow: hidden; }
+        .pagina-body.cheio { display: flex; flex-direction: column; }
+        .pagina-foot { flex: none; height: 14mm; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-style: italic; }
+        .pagina-meta { position: absolute; left: 0; bottom: 0; width: 100%; font-size: 1px; line-height: 1px; color: #fff; word-break: break-all; pointer-events: none; }
+        .print-body .item { position: relative; margin-bottom: 5px; padding-left: 20px; }
+        .print-body .item:before { content: '✓'; position: absolute; left: 0; font-weight: bold; }
+        .print-body .item.fim { margin-bottom: 15px; }
+        .print-body .para { margin: 0; }
+        .foto-pagina { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .foto-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 4px 0 6px; }
+        .foto-cell { display: flex; flex-direction: column; min-height: 0; border: 1px solid #999; padding: 5px; background: #fff; }
+        .foto-box, .anexo-box { position: relative; flex: 1; min-height: 0; }
+        .foto-box img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .anexo-box { margin: 6px 0; }
+        .anexo-box img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+        .foto-leg { flex: none; margin-top: 5px; font-size: 12px; font-weight: bold; line-height: 1.2; text-align: center; max-height: 30px; overflow: hidden; }
+        @media print {
+            #paginasRelatorio { zoom: 1 !important; }
+            .pagina { margin: 0; box-shadow: none; }
+            .pagina:not(:last-child) { page-break-after: always; break-after: page; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="mainContainer">
+
+    <!-- ==================== TELA DE EDIÇÃO (FORMULÁRIO) ==================== -->
+    <div id="formView">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <img src="data:image/jpeg;base64,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" alt="Estado da Bahia" onerror="this.style.display='none'" style="height: 60px; display: block; margin: 0 auto;">
+            <h2>Gerador de Relatório Técnico</h2>
+            
+            <div style="display: flex; justify-content: center; margin-top: 15px;">
+                <label class="btn-load" style="cursor: pointer; padding: 10px 15px; border-radius: 4px; font-size: 14px; font-weight: bold; border: 1px solid #d36a11;">
+                    📄 Corrigir Relatório (Carregar PDF gerado)
+                    <input type="file" class="file-hidden" accept="application/pdf,.pdf" onchange="carregarPdfCorrecao(event)">
+                </label>
+            </div>
+            <p style="font-size: 12px; color: #555;">Recupera todos os textos de um PDF gerado por este sistema.</p>
+        </div>
+
+        <div class="form-group inline-group">
+            <label>Número do Relatório:</label>
+            <span>RL-SUPEX-</span>
+            <input type="text" id="numRelatorio" placeholder="XXX-YYYY">
+            
+            <label style="margin-left: 10px;">Data:</label>
+            <input type="date" id="dataRelatorio">
+            
+            <label style="margin-left: 10px;">Início:</label>
+            <input type="time" id="horaInicio">
+            
+            <label style="margin-left: 10px;">Fim:</label>
+            <input type="time" id="horaFim">
+        </div>
+
+        <div class="form-group">
+            <label>Assunto:</label>
+            <input type="text" id="assunto" value="Vistoria Técnica às frentes de serviço" placeholder="Digite o assunto do relatório...">
+        </div>
+
+        <div class="form-group">
+            <label>Local:</label>
+            <input type="text" id="local" placeholder="Digite o local da vistoria...">
+        </div>
+
+        <div class="form-group">
+            <label>Objetivo: <button type="button" class="btn-mic" onclick="startDictation('objetivo')">🎤 Ditar</button></label>
+            <textarea id="objetivo" rows="3" placeholder="O presente relatório tem por objetivo..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>DESCRIÇÃO DAS ATIVIDADES VERIFICADAS:</label>
+            <div id="containerAtividades"></div>
+            <button type="button" class="btn-add" onclick="adicionarGrupoAtividades()">+ Adicionar Local/Agrupamento</button>
+        </div>
+
+        <div class="form-group">
+            <label>CONSIDERAÇÕES TÉCNICAS / FATOS RELEVANTES:</label>
+            <div id="containerConsideracoes"></div>
+            <button type="button" class="btn-add" onclick="adicionarGrupoConsideracoes()">+ Adicionar Tópico/Agrupamento</button>
+        </div>
+
+        <div class="form-group">
+            <label>CONCLUSÃO: <button type="button" class="btn-mic" onclick="startDictation('conclusao')">🎤 Ditar</button></label>
+            <textarea id="conclusao" rows="5" placeholder="Redija a conclusão..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Assinatura (Nome e Cargo/Matrícula):</label>
+            <textarea id="assinatura" rows="3" placeholder="Ex: Marcus Vinicius A. Álvares Filho&#10;Coordenador de Engenharia..."></textarea>
+        </div>
+
+        <div class="form-group" style="background: #e9ecef; padding: 15px; border-radius: 5px;">
+            <label>📸 Anexar Fotos da Vistoria</label>
+            <p style="font-size: 12px; margin-top: 0;"><strong>Dica:</strong> Use ⬆ ⬇ (ou arraste, no computador) para mudar a ordem.</p>
+            <input type="file" id="uploadFotos" multiple accept="image/*" onchange="carregarFotos(event)">
+            <div id="gridFotos" class="grid-fotos"></div>
+        </div>
+
+        <div class="form-group" style="background: #e9ecef; padding: 15px; border-radius: 5px;">
+            <label>📄 Anexar Projetos / Alvarás (Apenas PDF)</label>
+            <p style="font-size: 12px; margin-top: 0;"><strong>Dica:</strong> Plantas em paisagem serão giradas automaticamente para melhor visualização.</p>
+            <input type="file" id="uploadPdf" multiple accept="application/pdf,.pdf" onchange="carregarPdfs(event)">
+            <div id="pdfPreviews" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"></div>
+        </div>
+
+        <button type="button" class="btn-generate" onclick="gerarRelatorio()">GERAR RELATÓRIO PARA IMPRESSÃO</button>
+    </div>
+
+    <!-- ==================== TELA DE IMPRESSÃO ==================== -->
+    <div id="reportView">
+        <div class="toolbar no-print">
+            <button class="btn-primary" onclick="voltarEdicao()" style="background: #6c757d;">⬅ Voltar para Edição</button>
+            <button class="btn-primary" onclick="imprimirRelatorio()" style="background: #28a745; margin-left: 10px;">🖨️ IMPRIMIR / SALVAR PDF</button>
+        </div>
+
+        <div id="paginasRelatorio"></div>
+    </div>
+</div>
+
+<script>
+    // ----- FUNÇÕES DE BASE64 SEGURA PARA IOS (WEBP / WEBKIT / SAFARI) -----
+    function utf8_to_b64(str) {
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+            return String.fromCharCode('0x' + p1);
+        }));
+    }
+
+    function b64_to_utf8(str) {
+        return decodeURIComponent(Array.prototype.map.call(atob(str), function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+    }
+
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // ----- MAPEAMENTO DE ATIVIDADES PREDEFINIDAS -----
+    const OPCOES_ATIVIDADES = {
+        canteiro: [
+            "Confecção de Camisas Metálicas",
+            "Pintura de Camisas Metálicas",
+            "Montagem de Vigas Bailey",
+            "Armação de Lajes",
+            "Concretagem de Lajes",
+            "Confecção de Bases de Apoios (\"inserts\")",
+            "Pintura de Bases de Apoios (\"inserts\")",
+            "Confecção de Guarda Corpo",
+            "Pintura de Guarda Corpo",
+            "Confecção de Viga de Distribuição",
+            "Pintura de Viga de Distribuição",
+            "Confecção de Contraventamento",
+            "Pintura de Contraventamento",
+            "Outros"
+        ],
+        plp: [
+            "Cravação de Camisa Metálica",
+            "Arrasamento de Camisa Metálica",
+            "Instalação de Base de Apoio",
+            "Posicionamento de Viga de Distribuição",
+            "Posicionamento de Vigas Bailey",
+            "Posicionamento de Lajes Pré Moldadas",
+            "Instalação de Guarda Corpo",
+            "Instalação de Contraventamento",
+            "Confecção de Viga Caixa Pré Moldada",
+            "Outros"
+        ],
+        ponte: [
+            "Cravação de Camisa Metálica",
+            "Escavação de Estaca",
+            "Montagem de Armadura interna",
+            "Concretagem de Estaca",
+            "Arrasamento de Camisa Metálica",
+            "Posicionamento de Viga Pré Moldada",
+            "Montagem de Armadura de Pilar",
+            "Concretagem de Pilar",
+            "Outros"
+        ]
+    };
+
+    // ----- CRIAÇÃO DE AGRUPAMENTOS DE ATIVIDADES COM LISTA SUSPENSA -----
+    function adicionarGrupoAtividades(tituloSel = '', tituloOutros = '', itens = []) {
+        tituloSel = String(tituloSel || '').replace(/^\d+\.\s*/, ''); // compatível com relatórios antigos numerados
+        const container = document.getElementById('containerAtividades');
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'dynamic-group atividade-group';
+
+        groupDiv.innerHTML = `
+            <div style="margin-bottom: 10px;">
+                <label style="font-size: 13px;">Selecione o Agrupamento / Frente de Serviço:</label>
+                <select class="group-select" onchange="aoMudarAgrupamento(this)">
+                    <option value="">-- Selecione o Agrupamento --</option>
+                    <option value="Canteiro de Jaburu - Veracruz" data-tipo="canteiro">Canteiro de Jaburu - Veracruz</option>
+                    <option value="Canteiro Jequitaia - Salvador" data-tipo="canteiro">Canteiro Jequitaia - Salvador</option>
+                    <option value="Canteiro Central - Baía de Todos os Santos" data-tipo="canteiro">Canteiro Central - Baía de Todos os Santos</option>
+                    <option value="Canteiro Estaleiro São Roque do Paraguaçu" data-tipo="canteiro">Canteiro Estaleiro São Roque do Paraguaçu</option>
+                    <option value="PLP Veracruz" data-tipo="plp">PLP Veracruz</option>
+                    <option value="PLP Salvador" data-tipo="plp">PLP Salvador</option>
+                    <option value="PLP Vão Central" data-tipo="plp">PLP Vão Central</option>
+                    <option value="Ponte Definitiva Oeste - Vera Cruz" data-tipo="ponte">Ponte Definitiva Oeste - Vera Cruz</option>
+                    <option value="Ponte Definitiva Leste - Vera Cruz" data-tipo="ponte">Ponte Definitiva Leste - Vera Cruz</option>
+                    <option value="Ponte Definitiva - Vão Central" data-tipo="ponte">Ponte Definitiva - Vão Central</option>
+                    <option value="Outros" data-tipo="outros">Outros (digitação livre)</option>
+                </select>
+                <input type="text" class="group-title-outros" placeholder="Digite o nome do agrupamento..." style="display:none; margin-top: 5px;" value="${esc(tituloOutros)}">
+            </div>
+            <div class="items-list"></div>
+            <button type="button" class="btn-add" style="padding: 5px 10px; font-size: 12px; margin-top: 5px;" onclick="adicionarItemAtividade(this.previousElementSibling)">+ Adicionar Atividade</button>
+        `;
+
+        container.appendChild(groupDiv);
+
+        const select = groupDiv.querySelector('.group-select');
+        if (tituloSel) {
+            select.value = tituloSel;
+            aoMudarAgrupamento(select);
+        }
+
+        const lista = groupDiv.querySelector('.items-list');
+        if (itens.length > 0) {
+            itens.forEach(it => {
+                let actVal = typeof it === 'object' ? it.atividade : it;
+                let specVal = typeof it === 'object' ? it.especifico : '';
+                adicionarItemAtividade(lista, actVal, specVal);
+            });
+        } else {
+            adicionarItemAtividade(lista);
+        }
+    }
+
+    function aoMudarAgrupamento(selectElem) {
+        const groupDiv = selectElem.closest('.atividade-group');
+        const inputOutros = groupDiv.querySelector('.group-title-outros');
+        
+        if (selectElem.value === 'Outros') {
+            inputOutros.style.display = 'block';
+        } else {
+            inputOutros.style.display = 'none';
+        }
+
+        const selectsAtividade = groupDiv.querySelectorAll('.atividade-select');
+        selectsAtividade.forEach(sel => atualizarOpcoesAtividade(sel, selectElem));
+    }
+
+    function atualizarOpcoesAtividade(selectAtividade, selectAgrupamento) {
+        const valAtual = selectAtividade.value;
+        const selectedOpt = selectAgrupamento.options[selectAgrupamento.selectedIndex];
+        const tipo = selectedOpt ? selectedOpt.getAttribute('data-tipo') : '';
+
+        let listaOpcoes = [];
+        if (tipo && OPCOES_ATIVIDADES[tipo]) {
+            listaOpcoes = OPCOES_ATIVIDADES[tipo];
+        } else {
+            listaOpcoes = Array.from(new Set([...OPCOES_ATIVIDADES.canteiro, ...OPCOES_ATIVIDADES.plp, ...OPCOES_ATIVIDADES.ponte]));
+        }
+
+        let html = '<option value="">-- Selecione a atividade --</option>';
+        listaOpcoes.forEach(opt => {
+            html += `<option value="${esc(opt)}">${esc(opt)}</option>`;
+        });
+        selectAtividade.innerHTML = html;
+        if (valAtual) selectAtividade.value = valAtual;
+    }
+
+    function adicionarItemAtividade(listaContainer, valorAtividade = '', valorEspecifico = '') {
+        const groupDiv = listaContainer.closest('.atividade-group');
+        const selectAgrupamento = groupDiv ? groupDiv.querySelector('.group-select') : null;
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'dynamic-item';
+
+        itemDiv.innerHTML = `
+            <span>✓</span>
+            <select class="atividade-select" onchange="verificarOutrosAtividade(this)">
+                <option value="">-- Selecione a atividade --</option>
+            </select>
+            <input type="text" class="atividade-outros" placeholder="Especifique a atividade..." style="display:none;">
+            <input type="text" class="atividade-especifico" placeholder="Informação específica (ex: segmento, trecho...)" value="${esc(valorEspecifico)}">
+        `;
+
+        listaContainer.appendChild(itemDiv);
+
+        const selectAtividade = itemDiv.querySelector('.atividade-select');
+        if (selectAgrupamento) {
+            atualizarOpcoesAtividade(selectAtividade, selectAgrupamento);
+        }
+
+        if (valorAtividade) {
+            const existeOption = Array.from(selectAtividade.options).some(o => o.value === valorAtividade);
+            if (existeOption) {
+                selectAtividade.value = valorAtividade;
+            } else {
+                selectAtividade.value = "Outros";
+                const inputOutros = itemDiv.querySelector('.atividade-outros');
+                inputOutros.style.display = 'block';
+                inputOutros.value = valorAtividade;
+            }
+        }
+    }
+
+    function verificarOutrosAtividade(selectElem) {
+        const itemDiv = selectElem.closest('.dynamic-item');
+        const inputOutros = itemDiv.querySelector('.atividade-outros');
+        if (selectElem.value === 'Outros') {
+            inputOutros.style.display = 'block';
+        } else {
+            inputOutros.style.display = 'none';
+        }
+    }
+
+    // ----- CRIAÇÃO DE AGRUPAMENTOS PARA CONSIDERAÇÕES TÉCNICAS (PADRÃO LIVRE) -----
+    function adicionarGrupoConsideracoes(titulo = '', itens = []) {
+        const container = document.getElementById('containerConsideracoes');
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'dynamic-group consideracao-group';
+        
+        let htmlItens = '';
+        if(itens.length > 0) {
+            itens.forEach(it => {
+                htmlItens += `<div class="dynamic-item"><span>✓</span><input type="text" class="item-input" value="${esc(it)}" oninput="verificarNovoCampoConsideracao(this)"></div>`;
+            });
+        }
+        htmlItens += `<div class="dynamic-item"><span>✓</span><input type="text" class="item-input" placeholder="Descreva a consideração..." oninput="verificarNovoCampoConsideracao(this)"></div>`;
+
+        groupDiv.innerHTML = `
+            <input type="text" class="group-title" placeholder="Nome do Tópico/Agrupamento..." value="${esc(titulo)}" style="font-weight:bold; margin-bottom:10px;">
+            <div class="items-list">${htmlItens}</div>
+        `;
+        container.appendChild(groupDiv);
+    }
+
+    function verificarNovoCampoConsideracao(inputElement) {
+        const lista = inputElement.closest('.items-list');
+        const itens = lista.querySelectorAll('.item-input');
+        const ultimoItem = itens[itens.length - 1];
+        
+        if (ultimoItem.value.trim() !== "" && inputElement === ultimoItem) {
+            const newItem = document.createElement('div');
+            newItem.className = 'dynamic-item';
+            newItem.innerHTML = `<span>✓</span> <input type="text" class="item-input" placeholder="Próximo item..." oninput="verificarNovoCampoConsideracao(this)">`;
+            lista.appendChild(newItem);
+        }
+    }
+
+    // ----- FOTOS (UPLOAD, REORDENAR E EXCLUSÃO) -----
+    let draggedItem = null;
+    const SUPORTA_DRAG = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    function lerComoDataURL(file) {
+        return new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result);
+            r.onerror = () => rej(r.error);
+            r.readAsDataURL(file);
+        });
+    }
+
+    // Reduz a foto (fotos de iPhone têm vários MB e derrubam a memória do Safari)
+    function redimensionarImagem(file, maxDim = 1280, qualidade = 0.8) {
+        return new Promise((resolve) => {
+            const url = URL.createObjectURL(file);
+            const fallback = () => { URL.revokeObjectURL(url); lerComoDataURL(file).then(resolve).catch(() => resolve(null)); };
+            const img = new Image();
+            img.onload = function () {
+                try {
+                    const f = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+                    const w = Math.max(1, Math.round(img.naturalWidth * f));
+                    const h = Math.max(1, Math.round(img.naturalHeight * f));
+                    const c = document.createElement('canvas');
+                    c.width = w; c.height = h;
+                    const ctx = c.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    const out = c.toDataURL('image/jpeg', qualidade);
+                    c.width = c.height = 0;
+                    URL.revokeObjectURL(url);
+                    resolve(out);
+                } catch (e) { fallback(); }
+            };
+            img.onerror = fallback;
+            img.src = url;
+        });
+    }
+
+    async function carregarFotos(event) {
+        const files = Array.from(event.target.files || []);
+        event.target.value = '';
+        const grid = document.getElementById('gridFotos');
+        for (const file of files) {
+            const src = await redimensionarImagem(file);
+            if (!src) { alert('Não foi possível carregar a foto: ' + file.name); continue; }
+            criarCardFoto(grid, src);
+        }
+    }
+
+    function criarCardFoto(grid, src) {
+        const card = document.createElement('div');
+        card.className = 'photo-card';
+        card.innerHTML = `
+            <div class="card-header-actions no-print">
+                <span class="drag-indicator">☰ Arrastar</span>
+                <span class="acoes">
+                    <button type="button" class="btn-move" onclick="moverFoto(this, -1)" aria-label="Mover para cima">⬆</button>
+                    <button type="button" class="btn-move" onclick="moverFoto(this, 1)" aria-label="Mover para baixo">⬇</button>
+                    <button type="button" class="btn-delete-photo" onclick="removerFoto(this)">❌ Excluir</button>
+                </span>
+            </div>
+            <img alt="Foto">
+            <div style="display:flex; align-items:center;">
+                <strong class="foto-num-label" style="white-space: nowrap;"></strong>
+                <input type="text" class="legenda-input" placeholder="Digite a legenda..." style="margin-left:5px;">
+            </div>
+        `;
+        card.querySelector('img').src = src;
+
+        if (SUPORTA_DRAG) {
+            card.setAttribute('draggable', 'true');
+            card.addEventListener('dragstart', function (evt) {
+                draggedItem = this;
+                if (evt.dataTransfer) { evt.dataTransfer.effectAllowed = 'move'; evt.dataTransfer.setData('text/plain', ''); }
+                setTimeout(() => this.style.opacity = '0.4', 0);
+            });
+            card.addEventListener('dragover', function (evt) { evt.preventDefault(); });
+            card.addEventListener('dragenter', function (evt) { evt.preventDefault(); if (draggedItem && this !== draggedItem) this.classList.add('drag-over'); });
+            card.addEventListener('dragleave', function () { this.classList.remove('drag-over'); });
+            card.addEventListener('drop', function (evt) {
+                evt.preventDefault(); evt.stopPropagation();
+                this.classList.remove('drag-over');
+                if (draggedItem && draggedItem !== this) { this.parentNode.insertBefore(draggedItem, this); }
+            });
+            card.addEventListener('dragend', function () {
+                this.style.opacity = '1';
+                draggedItem = null;
+                document.querySelectorAll('.photo-card').forEach(c => c.classList.remove('drag-over'));
+                atualizarNumeracaoFotos();
+            });
+        }
+
+        grid.appendChild(card);
+        atualizarNumeracaoFotos();
+    }
+
+    function moverFoto(botao, direcao) {
+        const card = botao.closest('.photo-card');
+        const pai = card.parentNode;
+        if (direcao < 0 && card.previousElementSibling) pai.insertBefore(card, card.previousElementSibling);
+        else if (direcao > 0 && card.nextElementSibling) pai.insertBefore(card.nextElementSibling, card);
+        atualizarNumeracaoFotos();
+        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function removerFoto(botao) {
+        botao.closest('.photo-card').remove();
+        atualizarNumeracaoFotos();
+    }
+
+    function atualizarNumeracaoFotos() {
+        const cards = document.querySelectorAll('#gridFotos .photo-card');
+        cards.forEach((card, index) => {
+            const num = (index + 1).toString().padStart(2, '0');
+            card.querySelector('.foto-num-label').innerText = `Foto ${num} - `;
+        });
+    }
+
+    // ----- PDFS (Projetos/Alvarás) - COMPATÍVEL COM IOS -----
+    window.pdfImagesData = [];
+
+    function pdfOk() {
+        if (window.pdfjsLib) return true;
+        alert('A biblioteca de PDF não carregou. Verifique a conexão com a internet e recarregue a página.');
+        return false;
+    }
+
+    async function carregarPdfs(event) {
+        const files = Array.from(event.target.files || []);
+        event.target.value = '';
+        if (!files.length || !pdfOk()) return;
+        const container = document.getElementById('pdfPreviews');
+        window.pdfImagesData = [];
+        const erros = [];
+
+        for (const file of files) {
+            try {
+                const buf = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    container.innerHTML = `<span style="color: blue;">Processando ${esc(file.name)} - página ${i}/${pdf.numPages}... Aguarde.</span>`;
+                    const page = await pdf.getPage(i);
+                    const base = page.getViewport({ scale: 1.0 });
+                    const rot = base.width > base.height ? 90 : 0;
+                    const v1 = page.getViewport({ scale: 1.0, rotation: rot });
+                    // Limita os pixels (iOS falha com canvas gigante e perde memória com PNG)
+                    const scale = Math.min(2, Math.sqrt(4000000 / (v1.width * v1.height)));
+                    const viewport = page.getViewport({ scale: scale, rotation: rot });
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.floor(viewport.width);
+                    canvas.height = Math.floor(viewport.height);
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                    window.pdfImagesData.push(canvas.toDataURL('image/jpeg', 0.85));
+                    canvas.width = canvas.height = 0;
+                    page.cleanup();
+                }
+                pdf.destroy();
+            } catch (e) {
+                console.error(e);
+                erros.push(file.name + ' (' + (e && e.message ? e.message : 'erro') + ')');
+            }
+        }
+
+        container.innerHTML = '';
+        window.pdfImagesData.forEach((src) => {
+            const img = document.createElement('img');
+            img.src = src;
+            img.style.height = '80px';
+            img.style.border = '1px solid #ccc';
+            container.appendChild(img);
+        });
+        if (erros.length) alert('Não foi possível processar: ' + erros.join(', '));
+    }
+
+    // ----- RECUPERAÇÃO DE DADOS LENDO O PDF FINAL -----
+    async function carregarPdfCorrecao(event) {
+        const file = event.target.files[0];
+        if (!file || !pdfOk()) { event.target.value = ''; return; }
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+            let fullText = '';
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join('');
+                fullText += pageText;
+            }
+
+            const regex = /\[SUPEX[_ ]?DATA\]([\s\S]*?)\[\/SUPEX[_ ]?DATA\]/;
+            const match = fullText.match(regex);
+
+            if (match && match[1]) {
+                const base64Data = match[1].replace(/\s+/g, '');
+                const jsonStr = b64_to_utf8(base64Data);
+                const data = JSON.parse(jsonStr);
+
+                document.getElementById('numRelatorio').value = data.numRelatorio || '';
+                document.getElementById('dataRelatorio').value = data.dataRelatorio || '';
+                document.getElementById('horaInicio').value = data.horaInicio || '';
+                document.getElementById('horaFim').value = data.horaFim || '';
+                document.getElementById('assunto').value = data.assunto || 'Vistoria Técnica às frentes de serviço';
+                document.getElementById('local').value = data.local || '';
+                document.getElementById('objetivo').value = data.objetivo || '';
+                document.getElementById('conclusao').value = data.conclusao || '';
+                document.getElementById('assinatura').value = data.assinatura || '';
+
+                document.getElementById('containerAtividades').innerHTML = '';
+                document.getElementById('containerConsideracoes').innerHTML = '';
+
+                if (data.atividades && data.atividades.length > 0) {
+                    data.atividades.forEach(g => adicionarGrupoAtividades(g.titleSel, g.titleOutros, g.items));
+                } else {
+                    adicionarGrupoAtividades();
+                }
+
+                if (data.consideracoes && data.consideracoes.length > 0) {
+                    data.consideracoes.forEach(g => adicionarGrupoConsideracoes(g.title, g.items));
+                } else {
+                    adicionarGrupoConsideracoes();
+                }
+
+                alert("Texto do relatório recuperado com sucesso!");
+            } else {
+                alert("Não foi possível encontrar a chave de recuperação (DNA) neste arquivo.");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao ler o arquivo PDF.");
+        }
+        event.target.value = ''; 
+    }
+
+    // ----- CONSTRUTOR DO RELATÓRIO PARA IMPRESSÃO -----
+    function formatarData(dataISO) {
+        if(!dataISO) return "";
+        const p = dataISO.split('-');
+        return `${p[2]}/${p[1]}/${p[0]}`;
+    }
+
+    function extrairDadosAtividades() {
+        const groups = document.querySelectorAll('#containerAtividades .atividade-group');
+        let data = [];
+        groups.forEach(g => {
+            let sel = g.querySelector('.group-select').value;
+            let outros = g.querySelector('.group-title-outros').value.trim();
+            let items = [];
+
+            g.querySelectorAll('.dynamic-item').forEach(itemDiv => {
+                let selAct = itemDiv.querySelector('.atividade-select').value;
+                let outrosAct = itemDiv.querySelector('.atividade-outros').value.trim();
+                let esp = itemDiv.querySelector('.atividade-especifico').value.trim();
+
+                let actFinal = (selAct === 'Outros') ? outrosAct : selAct;
+                if (actFinal) {
+                    items.push({ atividade: actFinal, especifico: esp });
+                }
+            });
+
+            if (sel || items.length > 0) {
+                data.push({ titleSel: sel, titleOutros: outros, items: items });
+            }
+        });
+        return data;
+    }
+
+    function extrairDadosConsideracoes() {
+        const groups = document.querySelectorAll('#containerConsideracoes .consideracao-group');
+        let data = [];
+        groups.forEach(g => {
+            let title = g.querySelector('.group-title').value.trim();
+            let items = [];
+            g.querySelectorAll('.item-input').forEach(input => {
+                if(input.value.trim() !== '') items.push(input.value.trim());
+            });
+            if(title || items.length > 0) data.push({ title, items });
+        });
+        return data;
+    }
+
+    // ----- PAGINAÇÃO (Página X/Y) -----
+    const FOTOS_POR_PAGINA = 6;
+
+    function ajustarZoomRelatorio() {
+        const rv = document.getElementById('reportView');
+        const wrap = document.getElementById('paginasRelatorio');
+        if (!rv || !wrap || rv.style.display === 'none') return;
+        const p = wrap.querySelector('.pagina');
+        if (!p) return;
+        wrap.style.zoom = 1;
+        wrap.style.zoom = Math.min(1, rv.clientWidth / p.offsetWidth);
+    }
+    window.addEventListener('resize', ajustarZoomRelatorio);
+
+    function montarPaginas(d) {
+        const logoEl = document.querySelector('#formView img');
+        const LOGO = logoEl ? logoEl.src : '';
+        const geradoEm = new Date().toLocaleString('pt-BR');
+        const wrap = document.getElementById('paginasRelatorio');
+        wrap.innerHTML = '';
+        wrap.style.zoom = 1;
+        const paginas = [];
+
+        function novaPagina(cheia) {
+            const p = document.createElement('div');
+            p.className = 'pagina';
+            p.innerHTML = '<div class="pagina-head">' + (LOGO ? '<img src="' + LOGO + '" alt="Estado da Bahia">' : '') + '</div>' +
+                '<div class="pagina-body print-body' + (cheia ? ' cheio' : '') + '"></div>' +
+                '<div class="pagina-foot"><span>Relatório gerado em: ' + esc(geradoEm) + '</span><span class="pag-num"></span></div>';
+            wrap.appendChild(p);
+            paginas.push(p);
+            return p.querySelector('.pagina-body');
+        }
+
+        // Blocos do corpo do relatório
+        const blocos = [];
+        function add(tag, html, cls, keep, style) {
+            const el = document.createElement(tag);
+            if (cls) el.className = cls;
+            if (style) el.style.cssText = style;
+            el.innerHTML = html;
+            blocos.push({ el: el, keep: !!keep });
+        }
+        function secao(t) { add('div', t, 'section-title', true); }
+
+        add('div', '<h1 style="margin: 5px 0; font-size: 18px; text-decoration: underline; font-weight: bold;">RELATÓRIO TÉCNICO</h1><p style="margin: 0; font-size: 13px; font-weight: normal;">ACOMPANHAMENTO DE OBRAS - SISTEMA RODOVIÁRIO PONTE SALVADOR ITAPARICA<br>SVPONTE (SUPEX - Superintendência Executiva)</p>', null, false, 'text-align:center; margin-bottom:25px;');
+        const hI = d.horaInicio, hF = d.horaFim;
+        const horarios = (hI || hF) ? '(Das ' + esc(hI || '--') + ' às ' + esc(hF || '--') + ')' : '';
+        add('div', '<div><strong>Número do Relatório:</strong> RL-SUPEX-' + esc(d.numRelatorio) + '</div><div style="text-align:right;"><strong>Data:</strong> ' + esc(formatarData(d.dataRelatorio)) + ' <span style="margin-left:10px;">' + horarios + '</span></div>', 'info-grid');
+        add('div', '<strong>Assunto:</strong> ' + esc(d.assunto), null, false, 'margin-bottom:10px;');
+        add('div', '<strong>Local:</strong> ' + esc(d.local), null, false, 'margin-bottom:10px;');
+        add('div', '<strong>Objetivo:</strong> ' + esc(d.objetivo), null, false, 'margin-bottom:10px;');
+
+        secao('Descrição das atividades verificadas:');
+        d.atividades.forEach(g => {
+            const titulo = (g.titleSel === 'Outros') ? g.titleOutros : g.titleSel;
+            const itens = g.items.map(it => it.atividade + (it.especifico ? ' - ' + it.especifico : ''));
+            if (titulo) add('h4', esc(titulo), null, itens.length > 0);
+            itens.forEach((t, k) => add('div', esc(t), 'item' + (k === itens.length - 1 ? ' fim' : '')));
+        });
+
+        secao('Considerações Técnicas:');
+        d.consideracoes.forEach(g => {
+            if (g.title) add('h4', esc(g.title), null, g.items.length > 0);
+            g.items.forEach((t, k) => add('div', esc(t), 'item' + (k === g.items.length - 1 ? ' fim' : '')));
+        });
+
+        secao('Conclusão:');
+        const linhas = String(d.conclusao || '').split(/\r?\n/);
+        linhas.forEach((ln, k) => add('div', esc(ln.trim()) || '&nbsp;', 'para', k === linhas.length - 1));
+        add('div', '<div style="white-space:pre-wrap;">' + esc(d.assinatura) + '</div>', 'print-signature');
+
+        // Distribui os blocos nas páginas, medindo a altura real
+        const estoura = c => c.scrollHeight > c.clientHeight + 1;
+        let corpo = novaPagina(false);
+        let i = 0;
+        while (i < blocos.length) {
+            let j = i;
+            while (blocos[j].keep && j + 1 < blocos.length) j++;
+            const grupo = blocos.slice(i, j + 1);
+            i = j + 1;
+            grupo.forEach(b => corpo.appendChild(b.el));
+            if (estoura(corpo) && corpo.children.length > grupo.length) {
+                grupo.forEach(b => b.el.remove());
+                corpo = novaPagina(false);
+                grupo.forEach(b => corpo.appendChild(b.el));
+            }
+        }
+
+        // Fotos: 6 por página, 2 colunas x 3 linhas
+        const fotos = Array.from(document.querySelectorAll('#gridFotos .photo-card')).map(c => ({
+            src: c.querySelector('img').src,
+            leg: c.querySelector('.legenda-input').value.trim()
+        }));
+        for (let k = 0; k < fotos.length; k += FOTOS_POR_PAGINA) {
+            const body = novaPagina(true);
+            const celulas = fotos.slice(k, k + FOTOS_POR_PAGINA).map((f, idx) => {
+                const n = String(k + idx + 1).padStart(2, '0');
+                return '<div class="foto-cell"><div class="foto-box"><img src="' + f.src + '" alt=""></div><div class="foto-leg">Foto ' + n + (f.leg ? ' - ' + esc(f.leg) : '') + '</div></div>';
+            }).join('');
+            body.innerHTML = '<div class="foto-pagina">' + (k === 0 ? '<div class="section-title" style="flex:none; margin:10px 0 6px;">1. RELATÓRIO FOTOGRÁFICO</div>' : '') + '<div class="foto-grid">' + celulas + '</div></div>';
+        }
+
+        // Anexos em PDF: uma página do anexo por página do relatório
+        (window.pdfImagesData || []).forEach((src, idx) => {
+            const body = novaPagina(true);
+            body.innerHTML = '<div class="foto-pagina">' + (idx === 0 ? '<div class="section-title" style="flex:none; margin:10px 0 6px;">2. PROJETOS E DOCUMENTOS ANEXOS</div>' : '') + '<div class="anexo-box"><img src="' + src + '" alt=""></div></div>';
+        });
+
+        // Dados para "Corrigir Relatório" (texto invisível na última página)
+        const meta = document.createElement('div');
+        meta.className = 'pagina-meta';
+        meta.textContent = '[SUPEXDATA]' + utf8_to_b64(JSON.stringify(d)) + '[/SUPEXDATA]';
+        paginas[paginas.length - 1].appendChild(meta);
+
+        paginas.forEach((p, k) => { p.querySelector('.pag-num').textContent = 'Página ' + (k + 1) + '/' + paginas.length; });
+        ajustarZoomRelatorio();
+    }
+
+    function gerarRelatorio() {
+        try {
+            const v = id => document.getElementById(id).value;
+            const dados = {
+                numRelatorio: v('numRelatorio'), dataRelatorio: v('dataRelatorio'),
+                horaInicio: v('horaInicio'), horaFim: v('horaFim'),
+                assunto: v('assunto'), local: v('local'), objetivo: v('objetivo'),
+                conclusao: v('conclusao'), assinatura: v('assinatura'),
+                atividades: extrairDadosAtividades(),
+                consideracoes: extrairDadosConsideracoes()
+            };
+            document.getElementById('formView').style.display = 'none';
+            document.getElementById('reportView').style.display = 'block';
+            montarPaginas(dados);
+            window.scrollTo(0, 0);
+        } catch (err) {
+            document.getElementById('reportView').style.display = 'none';
+            document.getElementById('formView').style.display = 'block';
+            alert("Ocorreu um erro ao gerar o relatório: " + err.message);
+            console.error(err);
+        }
+    }
+
+    function voltarEdicao() {
+        document.getElementById('reportView').style.display = 'none';
+        document.getElementById('formView').style.display = 'block';
+        window.scrollTo(0, 0);
+    }
+
+    function imprimirRelatorio() {
+        try { window.print(); }
+        catch (e) { alert('Não foi possível abrir a impressão. No iPhone: toque em Compartilhar > Imprimir (ou Salvar em Arquivos).'); }
+    }
+
+    function startDictation(elementId) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            alert("O ditado por voz não é suportado por este navegador. Use o microfone do teclado do celular.");
+            return;
+        }
+        try {
+            const recognition = new SR();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = "pt-BR";
+            recognition.onresult = function (e) {
+                const target = document.getElementById(elementId);
+                target.value += (target.value ? " " : "") + e.results[0][0].transcript;
+            };
+            recognition.onerror = function (e) {
+                if (e.error === 'not-allowed' || e.error === 'service-not-allowed') alert("Permita o acesso ao microfone/ditado nas configurações do navegador.");
+                else if (e.error !== 'no-speech' && e.error !== 'aborted') alert("Não foi possível usar o ditado por voz. Use o microfone do teclado.");
+            };
+            recognition.start();
+        } catch (err) {
+            alert("Não foi possível iniciar o ditado. Use o microfone do teclado do celular.");
+        }
+    }
+
+    window.onload = function() {
+        adicionarGrupoAtividades();
+        adicionarGrupoConsideracoes();
+    };
+</script>
+
+</body>
+</html>
