@@ -409,7 +409,8 @@
             <select class="atividade-select" onchange="verificarOutrosAtividade(this)">
                 <option value="">-- Selecione a atividade --</option>
             </select>
-            <input type="text" class="atividade-outros" placeholder="Especifique a atividade..." style="display:none;">
+            <input type="text" class="atividade-outros" placeholder="Digite o nome da atividade..." style="display:none;">
+            <button type="button" class="btn-voltar-lista" title="Voltar para a lista de atividades" onclick="voltarListaAtividade(this)" style="display:none; background:#6c757d; color:#fff; padding:5px 10px; min-height:32px;">↩</button>
             <input type="text" class="atividade-especifico" placeholder="Informação específica (ex: segmento, trecho, etc...)" value="${esc(valorEspecifico)}">
         `;
 
@@ -427,20 +428,35 @@
             } else {
                 selectAtividade.value = "Outros";
                 const inputOutros = itemDiv.querySelector('.atividade-outros');
-                inputOutros.style.display = 'block';
                 inputOutros.value = valorAtividade;
+                verificarOutrosAtividade(selectAtividade, false);
             }
         }
     }
 
-    function verificarOutrosAtividade(selectElem) {
+    function verificarOutrosAtividade(selectElem, focar = true) {
         const itemDiv = selectElem.closest('.dynamic-item');
         const inputOutros = itemDiv.querySelector('.atividade-outros');
+        const btnVoltar = itemDiv.querySelector('.btn-voltar-lista');
         if (selectElem.value === 'Outros') {
+            // O campo de digitação substitui o select: aparece só o nome digitado
+            selectElem.style.display = 'none';
             inputOutros.style.display = 'block';
+            btnVoltar.style.display = 'inline-block';
+            if (focar) inputOutros.focus();
         } else {
+            selectElem.style.display = '';
             inputOutros.style.display = 'none';
+            btnVoltar.style.display = 'none';
         }
+    }
+
+    function voltarListaAtividade(btn) {
+        const itemDiv = btn.closest('.dynamic-item');
+        const sel = itemDiv.querySelector('.atividade-select');
+        itemDiv.querySelector('.atividade-outros').value = '';
+        sel.value = '';
+        verificarOutrosAtividade(sel, false);
     }
 
     // ----- CRIAÇÃO DE AGRUPAMENTOS PARA CONSIDERAÇÕES TÉCNICAS (PADRÃO LIVRE) -----
